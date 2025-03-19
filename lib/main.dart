@@ -53,6 +53,7 @@ class _LanguageDetectionPageState extends State<LanguageDetectionPage>
   String _detectedLanguage = '';
   double _confidence = 0.0;
   bool _isLoading = false;
+  bool _translateToEnglish = true;
   late AnimationController _animationController;
 
   final List<String> _supportedLanguages = [
@@ -143,20 +144,29 @@ class _LanguageDetectionPageState extends State<LanguageDetectionPage>
         await http.MultipartFile.fromPath('audio', _selectedFile!.path),
       );
 
+      // Add translation preference to the request
+      request.fields['translate_to_english'] = _translateToEnglish.toString();
+
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
         var data = json.decode(response.body);
 
-        // Show dialog with transcription
+        // Show dialog with transcription and translation
         await showDialog(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: Text(
-                'Audio Transcription',
-                style: TextStyle(color: Colors.deepPurple),
+              title: Row(
+                children: [
+                  Icon(Icons.record_voice_over, color: Colors.deepPurple),
+                  SizedBox(width: 10),
+                  Text(
+                    'Audio Transcription',
+                    style: TextStyle(color: Colors.deepPurple),
+                  ),
+                ],
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -164,14 +174,73 @@ class _LanguageDetectionPageState extends State<LanguageDetectionPage>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Language: ${data['language']}',
+                      'Language: ${data['language_name'] ?? data['language']}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.deepPurple,
                       ),
                     ),
                     SizedBox(height: 10),
-                    Text(data['transcription'], style: TextStyle(fontSize: 16)),
+                    Text(
+                      'Original Transcription:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        data['transcription'],
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+
+                    // Display translation if available
+                    if (data.containsKey('translated_text') &&
+                        data['translated_text'] != null &&
+                        data['translated_text'] != data['transcription'])
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(height: 15),
+                          Text(
+                            'English Translation:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Container(
+                            padding: EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              data['translated_text'],
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                    // Display any translation errors
+                    if (data.containsKey('translation_error'))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'Translation note: ${data['translation_error']}',
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -296,6 +365,41 @@ class _LanguageDetectionPageState extends State<LanguageDetectionPage>
                           ),
                         );
                       }).toList(),
+                ),
+              ),
+              SizedBox(height: 20),
+
+              // Translation Option
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.deepPurple.withOpacity(0.1),
+                      spreadRadius: 2,
+                      blurRadius: 5,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                child: SwitchListTile(
+                  title: Text(
+                    'Translate to English',
+                    style: TextStyle(color: Colors.deepPurple),
+                  ),
+                  subtitle: Text(
+                    'Automatically translate non-English audio to English',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: _translateToEnglish,
+                  activeColor: Colors.deepPurple,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _translateToEnglish = value;
+                    });
+                  },
                 ),
               ),
               SizedBox(height: 20),
